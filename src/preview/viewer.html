@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>观澜北苑 30-1101 — 交互式 3D</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#1a1a2e;font-family:system-ui,sans-serif}
+#bar{position:fixed;top:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10}
+#bar button,#bar label{padding:8px 16px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.65);color:#fff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s}
+#bar button:hover,.sel{background:rgba(37,99,235,.5)!important;border-color:rgba(37,99,235,.7)!important}
+#tip{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.5);font-size:11px;z-index:10;background:rgba(0,0,0,.5);padding:6px 16px;border-radius:20px;display:flex;gap:14px}
+#panel{position:fixed;left:16px;top:50%;transform:translateY(-50%);z-index:10;background:rgba(0,0,0,.65);border-radius:10px;padding:14px;color:#ccc;font-size:12px;line-height:2;min-width:140px;display:none}
+#panel b{color:#fff}
+#toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;z-index:100;background:rgba(0,0,0,.85);padding:12px 24px;border-radius:10px;font-size:15px;display:none;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div id="bar">
+  <button id="btn-persp" class="sel" onclick="V('persp')">透视图</button>
+  <button id="btn-top" onclick="V('top')">俯视图</button>
+  <button id="btn-front" onclick="V('front')">前视图</button>
+  <button id="btn-right" onclick="V('right')">右视图</button>
+  <button id="btn-wire" onclick="T()">线框</button>
+  <label>📂 加载<input type="file" id="finput" accept=".json" style="display:none"></label>
+</div>
+<div id="panel">
+  <div>项目：<b id="pn">—</b></div>
+  <div>房间：<b id="pr">—</b></div>
+  <div>墙体：<b id="pw">—</b></div>
+  <div>柜体：<b id="pc">—</b></div>
+</div>
+<div id="tip">
+  <span>🖱 左键旋转</span><span>🔍 滚轮缩放</span><span>✋ 右键平移</span>
+  <span>1-4 切换视角</span><span>W 线框</span>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+
+<script type="module">
+import * as T from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function toast(t,ms=2000){const e=document.getElementById('toast');e.textContent=t;e.style.display='block';if(ms)setTimeout(()=>e.style.display='none',ms)}
+
+// ── Scene ──
+const S = new T.Scene();
+S.background = new T.Color(0x1c1c30);
+S.fog = new T.Fog(0x1c1c30, 12, 40);
+const C = new T.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 100);
+const R = new T.WebGLRenderer({antialias:true});
+R.setSize(innerWidth, innerHeight);
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+R.shadowMap.enabled = true; R.shadowMap.type = T.PCFSoftShadowMap;
+R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 1.1;
+document.body.appendChild(R.domElement);
+const O = new OrbitControls(C, R.domElement);
+O.enableDamping = true; O.dampingFactor = 0.1;
+O.minDistance = 0.5; O.maxDistance = 20;
+O.maxPolarAngle = Math.PI * 0.52;
+
+// ── Lights ──
+S.add(new T.AmbientLight(0x8899bb, 1.5));
+const sun = new T.DirectionalLight(0xffffff, 5);
+sun.position.set(10, 15, -5); sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048); sun.shadow.bias = -0.0003;
+sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 50;
+sun.shadow.camera.left=-12; sun.shadow.camera.right=12;
+sun.shadow.camera.top=12; sun.shadow.camera.bottom=-5;
+S.add(sun);
+S.add(new T.DirectionalLight(0xaaccff,2)).position.set(-3,3,5);
+
+// ── Ground ──
+const G = new T.GridHelper(12, 24, 0x555577, 0x333350);
+G.position.y = 0.001; S.add(G);
+const gnd = new T.Mesh(new T.PlaneGeometry(20,20), new T.MeshStandardMaterial({color:0x2a2a3a, roughness:.9}));
+gnd.rotation.x = -Math.PI/2; gnd.position.y = -0.005; gnd.receiveShadow = true; S.add(gnd);
+
+// ── Materials ──
+const floorColors = [0xc4a882, 0xb8a899, 0xd4b896, 0xbfa888, 0xc8b090, 0xd0b898, 0xbaa080, 0xccb490];
+let floorColorIdx = 0;
+function nextFloorMat() {
+  const c = floorColors[floorColorIdx % floorColors.length];
+  floorColorIdx++;
+  return new T.MeshStandardMaterial({color:c, roughness:.3, metalness:.05});
+}
+const Mt = {
+  wall: new T.MeshStandardMaterial({color:0xe8e4dc, roughness:.8, metalness:.02}),
+  floor: new T.MeshStandardMaterial({color:0xc4a882, roughness:.3, metalness:.05}),
+  cab: new T.MeshStandardMaterial({color:0xf2efe8, roughness:.2, metalness:.03}),
+  cabD: new T.MeshStandardMaterial({color:0xddd5c8, roughness:.25, metalness:.04}),
+  door: new T.MeshStandardMaterial({color:0x9b7645, roughness:.35, metalness:.05}),
+  glass: new T.MeshStandardMaterial({color:0x8899bb, roughness:.1, metalness:.1, transparent:true, opacity:.35}),
+  skirt: new T.MeshStandardMaterial({color:0xe0ded8, roughness:.65}),
+  accent: new T.MeshStandardMaterial({color:0x2563eb, roughness:.2, metalness:.3, transparent:true, opacity:.25}),
+};
+const MG = new T.Group(); S.add(MG);
+
+// ── Builder functions ──
+function wall(w) {
+  const L = w.length / 1000, H = w.height / 1000, Th = (w.thickness||120) / 1000;
+  const x1 = w.start[0]/1000, z1 = w.start[1]/1000, x2 = w.end[0]/1000, z2 = w.end[1]/1000;
+  const cx = (x1+x2)/2, cz = (z1+z2)/2;
+  const dx = x2-x1, dz = z2-z1;
+  const ang = Math.atan2(dz, dx); // ← FIXED: was atan2(dx,dy)
+
+  const g = new T.Group();
+  // Main body
+  const b = new T.Mesh(new T.BoxGeometry(L, H, Th), Mt.wall);
+  b.position.set(cx, H/2, cz); b.rotation.y = ang;
+  b.castShadow = true; b.receiveShadow = true;
+  g.add(b);
+  // Highlight edge on top
+  const top = new T.Mesh(new T.BoxGeometry(L, .015, Th+.01), Mt.skirt);
+  top.position.set(cx, H, cz); top.rotation.y = ang;
+  g.add(top);
+  // Skirting
+  const sk = new T.Mesh(new T.BoxGeometry(L, .08, Th+.006), Mt.skirt);
+  sk.position.set(cx, .04, cz); sk.rotation.y = ang; sk.receiveShadow = true;
+  g.add(sk);
+  return g;
+}
+
+function floor(room) {
+  const f = room.floor || {}, w = (f.width||4000)/1000, d = (f.depth||3000)/1000;
+  const ox = (f.offset_x||0)/1000, oz = (f.offset_z||0)/1000;
+  const mat = nextFloorMat();
+  const m = new T.Mesh(new T.PlaneGeometry(w,d), mat);
+  m.rotation.x = -Math.PI/2; m.position.set(ox + w/2, .003, oz + d/2); m.receiveShadow = true;
+  return m;
+}
+
+function cabinet(c) {
+  const W = c.width/1000, H = c.height/1000, D = c.depth/1000;
+  const px = (c.position?.[0]||0)/1000, pz = (c.position?.[1]||0)/1000;
+  const g = new T.Group();
+  const b = new T.Mesh(new T.BoxGeometry(W, H, D), Mt.cab);
+  b.position.set(px+W/2, H/2, pz+D/2); b.castShadow = true; b.receiveShadow = true;
+  g.add(b);
+  for (let i=1;i<=3;i++) {
+    const s = new T.Mesh(new T.BoxGeometry(W-.02, .018, D-.02), Mt.cabD);
+    s.position.set(px+W/2, H*i/4, pz+D/2); g.add(s);
+  }
+  // Two door fronts
+  for (let i=0;i<2;i++) {
+    const d = new T.Mesh(new T.BoxGeometry(W/2-.015, H-.04, .012), Mt.cabD);
+    d.position.set(px+W*(i+.5)/2, H/2, pz+D+.012); g.add(d);
+  }
+  // Handle dots
+  for (let i=0;i<2;i++) {
+    const h = new T.Mesh(new T.SphereGeometry(.008,8,8), Mt.door);
+    h.position.set(px+W*(i+.5)/2+W/6, H/2, pz+D+.02); g.add(h);
+  }
+  return g;
+}
+
+function opening(o, wallData) {
+  const W = o.width/1000, Hh = (o.height||2100)/1000;
+  const wx = (wallData.start[0]+wallData.end[0])/2000;
+  const wz = (wallData.start[1]+wallData.end[1])/2000;
+  const wdx = (wallData.end[0]-wallData.start[0])/1000;
+  const wdz = (wallData.end[1]-wallData.start[1])/1000;
+  const wang = Math.atan2(wdz, wdx);
+  const g = new T.Group();
+  if (o.type === 'door') {
+    const d = new T.Mesh(new T.BoxGeometry(W, Hh, .05), Mt.door);
+    const pos = (o.position||0)/1000;
+    // Position along wall direction
+    const alongX = wx + Math.cos(wang) * pos;
+    const alongZ = wz + Math.sin(wang) * pos;
+    d.position.set(alongX, Hh/2, alongZ);
+    d.rotation.y = wang; d.castShadow = true;
+    g.add(d);
+  }
+  if (o.type === 'window') {
+    const win = new T.Mesh(new T.BoxGeometry(W, Hh, .04), Mt.glass);
+    const pos = (o.position||0)/1000;
+    const alongX = wx + Math.cos(wang) * pos;
+    const alongZ = wz + Math.sin(wang) * pos;
+    win.position.set(alongX, Hh/2 + .8, alongZ);
+    win.rotation.y = wang;
+    g.add(win);
+    // Accent frame
+    const frame = new T.Mesh(new T.BoxGeometry(W+.04, Hh+.04, .02), Mt.accent);
+    frame.position.copy(win.position);
+    frame.rotation.y = wang;
+    g.add(frame);
+  }
+  return g;
+}
+
+function buildModel(data) {
+  floorColorIdx = 0; // Reset color cycling
+  while(MG.children.length>0) MG.remove(MG.children[0]);
+  const rooms = data.rooms || [];
+  let tw=0, tc=0;
+  for (const room of rooms) {
+    const rg = new T.Group(); rg.name = room.name;
+    rg.add(floor(room));
+    for (const w of room.walls||[]) {
+      rg.add(wall(w)); tw++;
+    }
+    for (const cab of room.cabinets||[]) {
+      rg.add(cabinet(cab)); tc++;
+    }
+    for (const o of room.openings||[]) {
+      const wd = (room.walls||[]).find(w => w.id === o.wall_id);
+      if (wd) rg.add(opening(o, wd));
+    }
+    MG.add(rg);
+  }
+  // Fit camera
+  const box = new T.Box3().setFromObject(MG);
+  if (!box.isEmpty()) {
+    const c = box.getCenter(new T.Vector3());
+    const s = box.getSize(new T.Vector3());
+    const d = Math.max(s.x,s.y,s.z);
+    O.target.copy(c);
+    C.position.set(c.x+d*.7, c.y+d*.55, c.z+d*.9);
+  }
+  O.update();
+  document.getElementById('pn').textContent = data.project || '—';
+  document.getElementById('pr').textContent = rooms.length;
+  document.getElementById('pw').textContent = tw;
+  document.getElementById('pc').textContent = tc;
+  document.getElementById('panel').style.display = 'block';
+  return {rooms:rooms.length, walls:tw, cabinets:tc};
+}
+
+// ── View presets ──
+window.V = function(v) {
+  document.querySelectorAll('#bar button').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('btn-'+v)?.classList.add('sel');
+  const t = O.target.clone(), d = C.position.distanceTo(t);
+  if(v==='top') C.position.copy(t).add(new T.Vector3(.01,d,0));
+  else if(v==='front') C.position.copy(t).add(new T.Vector3(0,.5,d));
+  else if(v==='right') C.position.copy(t).add(new T.Vector3(d,.5,0));
+  else C.position.set(t.x+d*.55, t.y+d*.4, t.z+d*.75);
+  O.update();
+};
+
+let wr = false;
+window.T = function() {
+  wr=!wr; document.getElementById('btn-wire').classList.toggle('sel',wr);
+  MG.traverse(c=>{if(c.isMesh){const ms=Array.isArray(c.material)?c.material:[c.material];ms.forEach(m=>{if(m!==gnd.material)m.wireframe=wr})}});
+};
+
+// ── File load ──
+document.getElementById('finput').addEventListener('change', function(e){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader(); r.onload=ev=>{
+    try{const d=JSON.parse(ev.target.result);const s=buildModel(d);toast(`已加载: ${s.rooms} 房间, ${s.walls} 墙体, ${s.cabinets} 柜体`)}
+    catch(err){toast('JSON 解析失败: '+err.message,3000)}
+  }; r.readAsText(f);
+});
+
+// ── Init ──
+async function init(){
+  try{
+    const resp=await fetch('../data/parsed/simplified.json?v=' + Date.now());
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const d=await resp.json();
+    const s=buildModel(d);
+    toast(`已加载: ${s.rooms} 房间, ${s.walls} 墙体, ${s.cabinets} 柜体`);
+  }catch(err){
+    toast('未找到默认数据，请点击"📂 加载"选择 JSON 文件',4000);
+    console.error(err);
+  }
+}
+
+// ── Loop ──
+function loop(){requestAnimationFrame(loop);O.update();R.render(S,C)}
+loop();
+window.addEventListener('resize',()=>{C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)});
+window.addEventListener('keydown',e=>{
+  if(e.key==='1')V('persp');if(e.key==='2')V('top');if(e.key==='3')V('front');if(e.key==='4')V('right');if(e.key==='w'||e.key==='W')T();
+});
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+name: model3d
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - flask=3.0.*
+  - numpy=1.26.*
+  - pip
+  - pip:
+    - PyMuPDF==1.24.*

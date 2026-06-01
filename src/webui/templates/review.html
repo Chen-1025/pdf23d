@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}确认数据 — 3D 模型生成器{% endblock %}
+{% block content %}
+<div class="alert alert-info">请逐项确认和修正解析结果，完成后点击底部"确认数据，生成模型"按钮。</div>
+
+{% for room in data.rooms %}
+<div class="card">
+  <h2>{{ room.name }}</h2>
+  {% if room.walls %}
+  <h3 style="margin: 0.8rem 0 0.5rem;">墙体</h3>
+  <table>
+    <thead><tr><th>ID</th><th>长度 (mm)</th><th>高度 (mm)</th><th>厚度 (mm)</th></tr></thead>
+    <tbody>
+    {% for wall in room.walls %}
+    <tr>
+      <td>{{ wall.id }}</td>
+      <td><input class="edit-field" type="number" value="{{ wall.length }}"></td>
+      <td><input class="edit-field" type="number" value="{{ wall.height }}"></td>
+      <td><input class="edit-field" type="number" value="{{ wall.thickness }}"></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if room.cabinets %}
+  <h3 style="margin: 0.8rem 0 0.5rem;">柜体</h3>
+  <table>
+    <thead><tr><th>ID</th><th>类型</th><th>宽度 (mm)</th><th>高度 (mm)</th><th>深度 (mm)</th><th>材质</th></tr></thead>
+    <tbody>
+    {% for cab in room.cabinets %}
+    <tr>
+      <td>{{ cab.id }}</td>
+      <td>{{ cab.type }}</td>
+      <td><input class="edit-field" type="number" value="{{ cab.width }}"></td>
+      <td><input class="edit-field" type="number" value="{{ cab.height }}"></td>
+      <td><input class="edit-field" type="number" value="{{ cab.depth }}"></td>
+      <td>{{ cab.material }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if not room.walls and not room.cabinets %}
+  <p style="color: var(--text-dim);">此区域未识别到墙体或柜体数据</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div class="card" style="text-align: center;">
+  <form method="POST" action="/confirm" id="confirm-form">
+    <button type="submit" class="btn btn-success" style="font-size: 1rem; padding: 0.7rem 2rem;">
+      确认数据，生成 3D 模型
+    </button>
+  </form>
+</div>
+{% endblock %}

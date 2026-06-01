@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude / Superpowers
+.claude/
+.superpowers/
+
+# Data
+data/input/*
+data/output/*
+data/parsed/*
+!data/input/.gitkeep
+!data/output/.gitkeep
+!data/parsed/.gitkeep
+
+# Original files
+file/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Blender
+*.blend1
+
+# Docs
+docs/
+analyze_pdf.py

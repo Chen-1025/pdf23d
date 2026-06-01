@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}生成完成 — 3D 模型生成器{% endblock %}
+{% block content %}
+<div class="alert alert-success">3D 模型生成成功！</div>
+<div class="card">
+  <h2>下载文件</h2>
+  <ul style="list-style: none; padding: 0;">
+    {% for f in files %}
+    <li style="padding: 0.5rem 0;">
+      <a href="/output/{{ f }}" class="btn btn-primary" style="margin-right: 0.5rem;">下载</a>
+      {{ f }}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+<div class="card">
+  <h2>在线预览</h2>
+  <a href="/preview" class="btn btn-primary" target="_blank">在浏览器中预览 3D 模型</a>
+</div>
+<a href="/" class="btn" style="margin-top:1rem;">处理新图纸</a>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}上传设计图 — 3D 模型生成器{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>上传设计图纸</h2>
+  <p style="color: var(--text-dim); margin-bottom: 1rem;">支持 PDF 格式的室内设计/装修图纸</p>
+  <form method="POST" enctype="multipart/form-data" action="/upload">
+    <div class="form-group">
+      <label for="pdf_file">选择 PDF 文件</label>
+      <input type="file" id="pdf_file" name="pdf_file" accept=".pdf" required>
+    </div>
+    <button type="submit" class="btn btn-primary">上传并解析</button>
+  </form>
+</div>
+{% if error %}
+<div class="alert alert-warning">{{ error }}</div>
+{% endif %}
+{% endblock %}
