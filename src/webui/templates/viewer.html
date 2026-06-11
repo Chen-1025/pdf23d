@@ -92,6 +92,12 @@ canvas{display:block;position:fixed;top:0;left:0}
 #help.visible{opacity:1}
 #help kbd{display:inline-block;padding:1px 5px;background:var(--surface);border:1px solid var(--border);border-radius:3px;font-family:var(--font-mono);font-size:10px;color:var(--text-mid)}
 
+/* ── Mode Toggle ── */
+.mode-btn{padding:7px 18px;border:1px solid rgba(255,255,255,.12);background:transparent;color:var(--text-dim);border-radius:20px;cursor:pointer;font-size:12px;font-family:var(--font-display);font-weight:500;transition:all .25s}
+.mode-btn:hover{border-color:rgba(255,255,255,.2);color:var(--text)}
+.mode-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+#overlay .footer.mode-row{gap:8px;margin-top:24px}
+
 /* ── File input ── */
 #fileInput{display:none}
 </style>
@@ -106,9 +112,13 @@ canvas{display:block;position:fixed;top:0;left:0}
     <h1>设计图 <span>→</span> 三维空间</h1>
     <p class="desc">上传室内设计 PDF 图纸，即时生成可交互的 3D 模型。<br>支持全屋定制、橱柜设计、衣柜布局。</p>
     <div id="dropZone">
-      <div class="icon">📐</div>
-      <div class="label">拖放 PDF 文件到此处</div>
-      <div class="hint">或点击选择文件 &nbsp;·&nbsp; 最大 50MB</div>
+      <div class="icon" id="dropIcon">📐</div>
+      <div class="label" id="dropLabel">拖放 PDF 文件到此处</div>
+      <div class="hint" id="dropHint">或点击选择文件 &nbsp;·&nbsp; 最大 50MB</div>
+    </div>
+    <div class="footer" style="margin-top:24px;gap:8px;">
+      <button id="btnText" class="mode-btn active" onclick="setMode('text')">📝 文本解析</button>
+      <button id="btnVision" class="mode-btn" onclick="setMode('vision')">🤖 AI 视觉</button>
     </div>
     <div class="footer">
       <span>🏠 全屋定制</span>
@@ -250,18 +260,36 @@ function buildModel(data){
   document.getElementById('toast').classList.remove('show');
 }
 
+// ── Mode ──
+let parseMode='text';
+window.setMode=function(m){
+  parseMode=m;
+  document.getElementById('btnText').classList.toggle('active',m==='text');
+  document.getElementById('btnVision').classList.toggle('active',m==='vision');
+  const icon=m==='vision'?'🤖':'📐';
+  const label=m==='vision'?'AI 视觉解析模式':'拖放 PDF 文件到此处';
+  const hint=m==='vision'?'使用 Claude Vision 精确识别尺寸':'或点击选择文件 · 最大 50MB';
+  document.getElementById('dropIcon').textContent=icon;
+  document.getElementById('dropLabel').textContent=label;
+  document.getElementById('dropHint').textContent=hint;
+};
+
 // ── API ──
 async function parsePDF(file){
-  document.getElementById('toast').classList.add('show');
+  const toast=document.getElementById('toast');
+  toast.classList.add('show');
+  const msgEl=toast.querySelector('.msg');
+  msgEl.textContent=parseMode==='vision'?'AI 视觉解析中，约需 10-30 秒...':'解析中...';
   const fd=new FormData();fd.append('file',file);
+  const url='/api/parse?mode='+parseMode;
   try{
-    const resp=await fetch('/api/parse',{method:'POST',body:fd});
+    const resp=await fetch(url,{method:'POST',body:fd});
     const data=await resp.json();
-    if(data.error){alert('解析失败: '+data.error);document.getElementById('toast').classList.remove('show');return;}
+    if(data.error){alert('解析失败: '+data.error);toast.classList.remove('show');return;}
     setTimeout(()=>buildModel(data),400);
   }catch(err){
     alert('请求失败: '+err.message);
-    document.getElementById('toast').classList.remove('show');
+    toast.classList.remove('show');
   }
 }
 
