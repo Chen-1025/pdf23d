@@ -34,16 +34,24 @@ def _parse_text_mode(pdf_path: str, project_name: str) -> dict:
     return build_room_model(groups, project_name)
 
 
-def _parse_vision_mode(pdf_path: str, project_name: str) -> dict:
+def _parse_vision_mode(pdf_path: str, project_name: str, backend: str = "auto") -> dict:
     """Vision model-based parsing pipeline."""
-    from src.parser.vision import analyze_pdf_with_vision
+    from src.parser.vision import analyze_pdf_with_vision, detect_backend
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
+
+    if backend == "auto":
+        detected, _ = detect_backend()
+        backend = detected
+
+    if backend == "none":
         raise ValueError(
-            "Vision mode requires ANTHROPIC_API_KEY environment variable. "
-            "Set it via: export ANTHROPIC_API_KEY=your-key-here"
+            "No vision backend available.\n"
+            "Install Ollama (free): https://ollama.com\n"
+            "Then run: ollama pull llama3.2-vision:11b\n"
+            "Or set ANTHROPIC_API_KEY for Claude API."
         )
-    return analyze_pdf_with_vision(pdf_path, api_key)
+
+    return analyze_pdf_with_vision(pdf_path, backend=backend, api_key=api_key)
 
 
 @app.route("/api/parse", methods=["POST"])
@@ -61,6 +69,7 @@ def api_parse():
         return jsonify({"error": "Only PDF files supported"}), 400
 
     mode = request.args.get("mode", "text")
+    vision_backend = request.args.get("backend", "auto")
     project_name = Path(f.filename).stem
 
     try:
@@ -70,7 +79,7 @@ def api_parse():
             tmp_path = tmp.name
 
         if mode == "vision":
-            model = _parse_vision_mode(tmp_path, project_name)
+            model = _parse_vision_mode(tmp_path, project_name, backend=vision_backend)
         else:
             model = _parse_text_mode(tmp_path, project_name)
 
@@ -85,11 +94,14 @@ def api_parse():
 
 @app.route("/api/health")
 def health():
-    """Check if vision mode is available."""
-    has_key = bool(os.environ.get("ANTHROPIC_API_KEY", ""))
+    """Check available backends."""
+    from src.parser.vision import detect_backend
+    backend_name, model_name = detect_backend()
     return jsonify({
         "status": "ok",
-        "vision_available": has_key,
+        "vision_available": backend_name != "none",
+        "backend": backend_name,
+        "model": model_name,
     })
 
 

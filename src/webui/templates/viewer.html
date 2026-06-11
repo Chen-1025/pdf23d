@@ -118,8 +118,9 @@ canvas{display:block;position:fixed;top:0;left:0}
     </div>
     <div class="footer" style="margin-top:24px;gap:8px;">
       <button id="btnText" class="mode-btn active" onclick="setMode('text')">📝 文本解析</button>
-      <button id="btnVision" class="mode-btn" onclick="setMode('vision')">🤖 AI 视觉</button>
+      <button id="btnVision" class="mode-btn" onclick="setMode('vision')" id="btnVision">🤖 AI 视觉</button>
     </div>
+    <p id="backendInfo" style="margin-top:12px;font-size:11px;color:var(--text-dim);font-family:var(--font-mono)"></p>
     <div class="footer">
       <span>🏠 全屋定制</span>
       <span>📏 尺寸提取</span>
@@ -259,6 +260,20 @@ function buildModel(data){
   document.getElementById('help').classList.add('visible');
   document.getElementById('toast').classList.remove('show');
 }
+
+// ── Health Check ──
+(async function checkHealth(){
+  try{
+    const r=await fetch('/api/health');const d=await r.json();
+    if(d.vision_available){
+      document.getElementById('backendInfo').textContent='已检测到: '+d.backend+' ('+d.model+')';
+      document.getElementById('btnVision').style.opacity='1';
+    }else{
+      document.getElementById('backendInfo').textContent='未检测到视觉后端。安装 Ollama（免费）: ollama.com';
+      document.getElementById('btnVision').style.opacity='.4';
+    }
+  }catch(e){}
+})();
 
 // ── Mode ──
 let parseMode='text';

@@ -114,22 +114,32 @@ python -m src.webui.app
 
 ## AI 视觉解析模式
 
-启用 Claude Vision API 可获得更精确的尺寸识别：
+支持两种视觉后端，自动检测可用性：
+
+### 方案一：Ollama（免费，本地运行）
 
 ```bash
-# 设置 API Key
-export ANTHROPIC_API_KEY=sk-ant-...
+# 安装 Ollama
+# Windows/Mac/Linux: https://ollama.com
 
-# 启动服务（自动启用视觉模式）
+# 下载视觉模型（推荐 llama3.2-vision）
+ollama pull llama3.2-vision:11b
+
+# 启动服务
 python -m src.webui.app
 ```
 
-在 Web 界面中切换到 **"AI 视觉"** 模式，上传 PDF 后 Claude 会将每页渲染为图像进行分析，识别：
+### 方案二：Claude Vision API（付费，精度最高）
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+python -m src.webui.app
+```
+
+在 Web 界面切换到 **"AI 视觉"** 模式，上传 PDF 即可。程序会自动检测可用后端。识别内容包括：
 - 尺寸线和标注数字的精确对应关系
 - 房间/柜体的真实几何结构
 - 材质标注和设计说明
-
-视觉模式处理速度约 10-30 秒/批（3 页），比文本模式慢但精度更高。
 
 ## 命令行工具
 

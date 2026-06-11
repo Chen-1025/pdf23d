@@ -1,141 +1,181 @@
-"""Vision-based PDF analysis using Claude Vision API.
+"""Vision-based PDF analysis supporting multiple backends.
 
-Renders PDF pages as images and sends them to Claude for
-precise dimension and layout extraction.
+Backends:
+  - ollama: Free local vision model (llava, minicpm-v, llama3.2-vision)
+  - claude: Anthropic Claude Vision API (paid, high accuracy)
+
+Auto-detects Ollama if running locally. Falls back to Claude if API key set.
 """
 from __future__ import annotations
 import base64
 import json
 import os
 import time
+import urllib.request
+import urllib.error
 from pathlib import Path
 from typing import Any
 
 import fitz
 
-# Claude API endpoint
-ANTHROPIC_API = "https://api.anthropic.com/v1/messages"
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-
-# Maximum pages to analyze per request (to control cost/tokens)
 MAX_PAGES_PER_BATCH = 3
 
-# System prompt for blueprint analysis
-SYSTEM_PROMPT = """You are an architectural blueprint analyzer. Your task is to examine images
-of interior design / custom cabinetry drawings and extract precise dimensional data.
+SYSTEM_PROMPT = """You are an architectural blueprint analyzer. Examine the image of a
+cabinet/furniture design drawing and extract precise dimensional data.
 
-For each page image you see, identify:
-
+Identify:
 1. **Page type**: floor_plan, elevation, cabinet_detail, or section
-2. **Room/Furniture**: What room or furniture piece is this? (kitchen, living room, bedroom,
-   wardrobe, tv_cabinet, entrance_cabinet, study, shelving, etc.)
-3. **Overall dimensions**: The total width, height, and depth shown (in millimeters).
-   Look for dimension lines with arrowheads or tick marks, and the numbers near them.
-4. **Individual segments**: Each labeled dimension on the drawing. Look for:
-   - Horizontal dimension lines (text centered between tick marks)
-   - Vertical dimension lines
-   - Numbers in the format like "420", "830", "2560" (all measurements in mm)
-5. **Material notes**: Any material specifications (PET, wood grain, etc.)
-6. **Labels**: Any Chinese text labels identifying components
+2. **Room name**: (厨房/客厅/卧室/书房/玄关/餐厅/卫生间/阳台/储物间)
+3. **Furniture type**: kitchen_cabinet, wardrobe, tv_cabinet, shelving, entrance_cabinet,
+   study_furniture, sideboard, storage, bathroom_cabinet, cabinet
+4. **Overall dimensions**: total width, height, depth in MILLIMETERS.
+   Find dimension lines with tick marks/arrows and read the numbers near them.
+5. **Individual dimensions**: Each labeled measurement on the drawing.
+   Numbers are 2-4 digits (e.g., 420, 830, 2560). ALL in mm.
+6. **Material**: Any PET, wood grain, or material specs visible.
+7. **Notes**: Key Chinese labels or design notes.
 
-**IMPORTANT RULES:**
-- ALL measurements are in MILLIMETERS (mm)
-- Dimension numbers are typically 2-4 digits (e.g., 420, 1320, 2560)
-- Look carefully at the dimension LINES - they usually have tick marks at ends
-- The dimension number is centered between the tick marks
-- DO NOT confuse design note text with dimension values
-- Report ONLY values that are clearly associated with dimension lines
+CRITICAL:
+- ALL measurements in millimeters (mm)
+- Only report numbers clearly associated with dimension lines
+- Do NOT confuse phone numbers or page numbers with dimensions"""  # noqa: E501
 
-Output ONLY valid JSON, no markdown, no explanation:
-{
-  "pages": [
-    {
-      "page_num": 1,
-      "page_type": "floor_plan",
-      "room_name": "厨房",
-      "furniture_type": "kitchen_cabinet",
-      "overall_width_mm": 3000,
-      "overall_height_mm": 2500,
-      "overall_depth_mm": 600,
-      "dimensions": [
-        {"label": "w1", "value": 1320, "description": "base cabinet width"},
-        {"label": "w2", "value": 830, "description": "wall cabinet width"}
-      ],
-      "material": "PET matte white",
-      "notes": "Base cabinet with aluminum handle-free design"
-    }
-  ]
-}"""
+OUTPUT_SCHEMA = """{
+  "pages": [{
+    "page_num": 1,
+    "page_type": "elevation",
+    "room_name": "厨房",
+    "furniture_type": "kitchen_cabinet",
+    "overall_width_mm": 3000,
+    "overall_height_mm": 2500,
+    "overall_depth_mm": 600,
+    "dimensions": [
+      {"label": "A", "value": 1320, "description": "cabinet width"},
+      {"label": "B", "value": 830, "description": "door height"}
+    ],
+    "material": "PET",
+    "notes": "Base cabinet"
+  }]
+}"""  # noqa: E501
 
 
-def render_page_to_image(page: fitz.Page, scale: float = 2.0) -> bytes:
-    """Render a PDF page to PNG image bytes."""
-    pix = page.get_pixmap(dpi=int(72 * scale))
-    return pix.tobytes("png")
+# ── Backend Detection ──
+
+def _check_ollama() -> str | None:
+    """Check if Ollama is running and has a vision model."""
+    try:
+        req = urllib.request.Request("http://localhost:11434/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+        models = [m["name"] for m in data.get("models", [])]
+        # Prefer vision-capable models in order of quality
+        for preferred in ["llama3.2-vision:11b", "minicpm-v:8b", "llava:13b",
+                          "llava:7b", "bakllava:7b"]:
+            for m in models:
+                if m.startswith(preferred.split(":")[0]):
+                    return m
+        # Any model with "vision" or "llava" or "minicpm" in name
+        for m in models:
+            if any(k in m.lower() for k in ["vision", "llava", "minicpm", "bakllava"]):
+                return m
+        return None
+    except Exception:
+        return None
 
 
-def encode_image(image_bytes: bytes) -> str:
-    """Base64-encode image bytes for API."""
-    return base64.b64encode(image_bytes).decode("utf-8")
+def detect_backend() -> tuple[str, str]:
+    """Auto-detect available vision backend.
 
-
-def call_claude_vision(
-    images: list[tuple[int, bytes]],
-    api_key: str = "",
-) -> dict[str, Any]:
-    """Send page images to Claude Vision API for analysis.
-
-    Args:
-        images: List of (page_number, png_bytes) tuples
-        api_key: Anthropic API key
-
-    Returns:
-        Parsed JSON response with page analyses
+    Returns: (backend_name, model_name)
     """
-    import urllib.request
-    import urllib.error
+    # Check Ollama first (free)
+    ollama_model = _check_ollama()
+    if ollama_model:
+        return ("ollama", ollama_model)
 
-    key = api_key or API_KEY
-    if not key:
-        raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+    # Check Claude API key
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return ("claude", "claude-sonnet-4-6")
 
-    # Build content blocks
-    content_blocks = []
+    return ("none", "")
 
+
+# ── Backend Implementations ──
+
+def _call_ollama(model: str, images: list[tuple[int, bytes]]) -> dict[str, Any]:
+    """Call Ollama vision API (OpenAI-compatible chat endpoint)."""
+    # Build messages with images
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    # Ollama supports multiple images in one message
+    user_content = []
     for page_num, img_bytes in images:
-        b64 = encode_image(img_bytes)
+        b64 = base64.b64encode(img_bytes).decode("utf-8")
+        user_content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{b64}"}
+        })
+        user_content.append({
+            "type": "text",
+            "text": f"(Page {page_num})"
+        })
+
+    user_content.append({
+        "type": "text",
+        "text": f"Output ONLY valid JSON, no markdown:\n{OUTPUT_SCHEMA}"
+    })
+
+    messages.append({"role": "user", "content": user_content})
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": 0.1, "num_predict": 4096},
+    }
+
+    req = urllib.request.Request(
+        "http://localhost:11434/api/chat",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+
+    return _parse_response(result.get("message", {}).get("content", ""))
+
+
+def _call_claude(images: list[tuple[int, bytes]], api_key: str = "") -> dict[str, Any]:
+    """Call Anthropic Claude Vision API."""
+    key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+    if not key:
+        raise ValueError("ANTHROPIC_API_KEY not set")
+
+    content_blocks = []
+    for page_num, img_bytes in images:
+        b64 = base64.b64encode(img_bytes).decode("utf-8")
         content_blocks.append({
             "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/png",
-                "data": b64,
-            }
+            "source": {"type": "base64", "media_type": "image/png", "data": b64}
         })
-        content_blocks.append({
-            "type": "text",
-            "text": f"(Page {page_num} image above)"
-        })
+        content_blocks.append({"type": "text", "text": f"(Page {page_num})"})
 
     content_blocks.append({
         "type": "text",
-        "text": "Analyze ALL pages above. "
-                "For each page, extract precise dimensions from the dimension lines. "
-                "Return ONLY valid JSON matching the specified format. "
-                "No markdown, no explanation — just the JSON object."
+        "text": f"Output ONLY valid JSON:\n{OUTPUT_SCHEMA}"
     })
 
     payload = {
         "model": "claude-sonnet-4-6",
         "max_tokens": 4096,
         "system": SYSTEM_PROMPT,
-        "messages": [
-            {"role": "user", "content": content_blocks}
-        ],
+        "messages": [{"role": "user", "content": content_blocks}],
     }
 
     req = urllib.request.Request(
-        ANTHROPIC_API,
+        "https://api.anthropic.com/v1/messages",
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
@@ -149,56 +189,88 @@ def call_claude_vision(
         with urllib.request.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8") if e.fp else str(e)
-        raise RuntimeError(f"API error {e.code}: {error_body}")
+        body = e.read().decode("utf-8") if e.fp else str(e)
+        raise RuntimeError(f"Claude API error {e.code}: {body}")
 
-    # Extract text from response
-    text_response = ""
+    text = ""
     for block in result.get("content", []):
         if block.get("type") == "text":
-            text_response += block.get("text", "")
+            text += block.get("text", "")
+    return _parse_response(text)
 
-    # Parse JSON from response (strip any markdown wrapping)
-    text_response = text_response.strip()
-    if text_response.startswith("```"):
-        lines = text_response.split("\n")
-        lines = lines[1:] if lines[0].startswith("```") else lines
-        if lines and lines[-1].startswith("```"):
+
+def _parse_response(text: str) -> dict[str, Any]:
+    """Parse JSON from model response text."""
+    text = text.strip()
+    # Strip markdown code fences
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
             lines = lines[:-1]
-        text_response = "\n".join(lines)
+        text = "\n".join(lines)
 
     try:
-        return json.loads(text_response)
+        return json.loads(text)
     except json.JSONDecodeError:
-        # Try to extract JSON block
         import re
-        match = re.search(r'\{.*\}', text_response, re.DOTALL)
+        match = re.search(r'\{.*\}', text, re.DOTALL)
         if match:
             return json.loads(match.group(0))
-        raise ValueError(f"Could not parse JSON from response: {text_response[:500]}")
+        raise ValueError(f"Cannot parse JSON from: {text[:500]}")
 
+
+# ── Rendering ──
+
+def render_page_to_image(page: fitz.Page, scale: float = 2.0) -> bytes:
+    """Render PDF page to PNG bytes."""
+    return page.get_pixmap(dpi=int(72 * scale)).tobytes("png")
+
+
+# ── Main API ──
 
 def analyze_pdf_with_vision(
     pdf_path: str | Path,
+    backend: str = "auto",
+    model: str = "",
     api_key: str = "",
     progress_callback=None,
 ) -> dict[str, Any]:
-    """Analyze a PDF using vision model.
+    """Analyze a PDF using a vision model.
 
     Args:
         pdf_path: Path to PDF file
-        api_key: Anthropic API key
-        progress_callback: Optional callback(step, total) for progress
+        backend: "auto", "ollama", or "claude"
+        model: Model name override (auto-detected if empty)
+        api_key: API key for Claude backend
+        progress_callback: Optional callback(page, total)
 
     Returns:
-        Structured room model dict
+        Room model dict
     """
+    # Resolve backend
+    if backend == "auto":
+        backend, detected_model = detect_backend()
+        model = model or detected_model
+    elif backend == "ollama":
+        model = model or (_check_ollama() or "llava:13b")
+    elif backend == "claude":
+        model = model or "claude-sonnet-4-6"
+
+    if backend == "none":
+        raise RuntimeError(
+            "No vision backend available.\n"
+            "Install Ollama: https://ollama.com\n"
+            "Then: ollama pull llama3.2-vision:11b\n"
+            "Or set ANTHROPIC_API_KEY for Claude."
+        )
+
+    print(f"Using vision backend: {backend} ({model})")
+
     doc = fitz.open(str(pdf_path))
     total_pages = len(doc)
-
     all_results = []
 
-    # Process pages in batches
     for batch_start in range(0, total_pages, MAX_PAGES_PER_BATCH):
         batch_end = min(batch_start + MAX_PAGES_PER_BATCH, total_pages)
         batch_images = []
@@ -206,33 +278,33 @@ def analyze_pdf_with_vision(
         for i in range(batch_start, batch_end):
             if progress_callback:
                 progress_callback(i + 1, total_pages)
-            page = doc[i]
-            img_bytes = render_page_to_image(page, scale=1.5)
+            img_bytes = render_page_to_image(doc[i], scale=1.5)
             batch_images.append((i + 1, img_bytes))
 
-        print(f"  Analyzing pages {batch_start+1}-{batch_end} of {total_pages}...")
-        result = call_claude_vision(batch_images, api_key)
-        pages_data = result.get("pages", [])
-        all_results.extend(pages_data)
+        print(f"  Pages {batch_start+1}-{batch_end} of {total_pages}...")
 
-        # Rate limiting
+        if backend == "ollama":
+            result = _call_ollama(model, batch_images)
+        else:
+            result = _call_claude(batch_images, api_key)
+
+        all_results.extend(result.get("pages", []))
+
         if batch_end < total_pages:
-            time.sleep(1)
+            time.sleep(0.5)
 
     doc.close()
 
     if progress_callback:
         progress_callback(total_pages, total_pages)
 
-    # Convert vision results to room model format
-    return _vision_results_to_model(all_results)
+    return _results_to_model(all_results)
 
 
-def _vision_results_to_model(pages_data: list[dict]) -> dict[str, Any]:
-    """Convert vision analysis results to the standard room model format."""
+def _results_to_model(pages_data: list[dict]) -> dict[str, Any]:
+    """Convert vision results to room model format."""
     from src.parser.assembler import build_room_model
 
-    # Group pages by room
     room_groups: dict[str, dict] = {}
     for p in pages_data:
         room = p.get("room_name", "房间")
@@ -244,19 +316,19 @@ def _vision_results_to_model(pages_data: list[dict]) -> dict[str, Any]:
                 "material_type": "",
                 "project": "",
             }
+        dims = [d["value"] for d in p.get("dimensions", [])]
         room_groups[room]["pages"].append({
             "page_num": p.get("page_num", 0),
             "type": p.get("page_type", "cabinet_detail"),
             "furniture_type": p.get("furniture_type", "cabinet"),
             "room_name": room,
-            "dimensions": [d["value"] for d in p.get("dimensions", [])],
-            "max_dim": max([d["value"] for d in p.get("dimensions", [])]) if p.get("dimensions") else p.get("overall_width_mm", 1000),
+            "dimensions": dims,
+            "max_dim": max(dims) if dims else p.get("overall_width_mm", 1000),
             "est_width": p.get("overall_width_mm", 1000),
             "est_height": p.get("overall_height_mm", 2600),
             "est_depth": p.get("overall_depth_mm", 400),
             "material": p.get("material", ""),
-            "labels": p.get("notes", "").split("\n") if p.get("notes") else [],
+            "labels": [p.get("notes", "")],
         })
 
-    groups = list(room_groups.values())
-    return build_room_model(groups, "vision-analysis")
+    return build_room_model(list(room_groups.values()), "vision-analysis")
