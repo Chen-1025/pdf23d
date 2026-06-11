@@ -8,6 +8,7 @@
 - **实时 3D 渲染** — 拖放 PDF 即刻生成可旋转、缩放、平移的 3D 模型
 - **多房间布局** — 自动排列厨房、客厅、卧室、书房等空间位置
 - **柜体建模** — 从图纸尺寸标注中提取柜体宽高深，可视化展示
+- **AI 视觉解析** — 可选启用 Claude Vision API 进行精确尺寸识别，比文本解析更精细
 - **材质区分** — 不同房间使用独立配色，柜体与墙体材质区分
 
 ## 安装
@@ -110,6 +111,25 @@ python -m src.webui.app
 | 3D 渲染 | Three.js + OrbitControls |
 | 字体 | Outfit, Crimson Text, DM Mono |
 | 环境 | Python 3.9+, venv/conda |
+
+## AI 视觉解析模式
+
+启用 Claude Vision API 可获得更精确的尺寸识别：
+
+```bash
+# 设置 API Key
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# 启动服务（自动启用视觉模式）
+python -m src.webui.app
+```
+
+在 Web 界面中切换到 **"AI 视觉"** 模式，上传 PDF 后 Claude 会将每页渲染为图像进行分析，识别：
+- 尺寸线和标注数字的精确对应关系
+- 房间/柜体的真实几何结构
+- 材质标注和设计说明
+
+视觉模式处理速度约 10-30 秒/批（3 页），比文本模式慢但精度更高。
 
 ## 命令行工具
 
