@@ -69,8 +69,8 @@ def _check_ollama() -> str | None:
             data = json.loads(resp.read().decode())
         models = [m["name"] for m in data.get("models", [])]
         # Prefer vision-capable models in order of quality
-        for preferred in ["llama3.2-vision", "minicpm-v", "llava-phi3",
-                          "llava:13b", "llava:7b", "bakllava"]:
+        for preferred in ["llava-phi3", "minicpm-v",
+                          "llava:13b", "llava:7b", "llama3.2-vision", "bakllava"]:
             for m in models:
                 if m.startswith(preferred.split(":")[0]):
                     return m
@@ -102,48 +102,46 @@ def detect_backend() -> tuple[str, str]:
 # ── Backend Implementations ──
 
 def _call_ollama(model: str, images: list[tuple[int, bytes]]) -> dict[str, Any]:
-    """Call Ollama vision API (OpenAI-compatible chat endpoint)."""
-    # Build messages with images
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    """Call Ollama vision API using native /api/chat format."""
+    # Ollama expects images as top-level field in message, not in content blocks
+    # Process images one at a time for simplicity, or use images array for multi-image
+    all_images = [base64.b64encode(img_bytes).decode("utf-8")
+                  for _, img_bytes in images]
 
-    # Ollama supports multiple images in one message
-    user_content = []
-    for page_num, img_bytes in images:
-        b64 = base64.b64encode(img_bytes).decode("utf-8")
-        user_content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{b64}"}
-        })
-        user_content.append({
-            "type": "text",
-            "text": f"(Page {page_num})"
-        })
+    page_descs = "\n".join(f"- Page {n}" for n, _ in images)
 
-    user_content.append({
-        "type": "text",
-        "text": f"Output ONLY valid JSON, no markdown:\n{OUTPUT_SCHEMA}"
-    })
-
-    messages.append({"role": "user", "content": user_content})
+    prompt = (
+        f"I am showing you {len(images)} page(s) from a cabinet design PDF:\n"
+        f"{page_descs}\n\n"
+        f"Analyze ALL pages and extract precise dimensions.\n"
+        f"Output ONLY valid JSON matching this schema, no markdown:\n"
+        f"{OUTPUT_SCHEMA}"
+    )
 
     payload = {
         "model": model,
-        "messages": messages,
+        "system": SYSTEM_PROMPT,
+        "prompt": prompt,
+        "images": all_images,
         "stream": False,
         "options": {"temperature": 0.1, "num_predict": 4096},
     }
 
     req = urllib.request.Request(
-        "http://localhost:11434/api/chat",
+        "http://localhost:11434/api/generate",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=180) as resp:
-        result = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8") if e.fp else str(e)
+        raise RuntimeError(f"Ollama error {e.code}: {body[:500]}")
 
-    return _parse_response(result.get("message", {}).get("content", ""))
+    return _parse_response(result.get("response", ""))
 
 
 def _call_claude(images: list[tuple[int, bytes]], api_key: str = "") -> dict[str, Any]:
