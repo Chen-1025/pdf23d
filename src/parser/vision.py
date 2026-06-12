@@ -69,12 +69,11 @@ def _check_ollama() -> str | None:
             data = json.loads(resp.read().decode())
         models = [m["name"] for m in data.get("models", [])]
         # Prefer vision-capable models in order of quality
-        for preferred in ["llama3.2-vision:11b", "minicpm-v:8b", "llava:13b",
-                          "llava:7b", "bakllava:7b"]:
+        for preferred in ["llama3.2-vision", "minicpm-v", "llava-phi3",
+                          "llava:13b", "llava:7b", "bakllava"]:
             for m in models:
                 if m.startswith(preferred.split(":")[0]):
                     return m
-        # Any model with "vision" or "llava" or "minicpm" in name
         for m in models:
             if any(k in m.lower() for k in ["vision", "llava", "minicpm", "bakllava"]):
                 return m
