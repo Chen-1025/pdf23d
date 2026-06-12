@@ -35,23 +35,32 @@ def _parse_text_mode(pdf_path: str, project_name: str) -> dict:
 
 
 def _parse_vision_mode(pdf_path: str, project_name: str, backend: str = "auto") -> dict:
-    """Vision model-based parsing pipeline."""
-    from src.parser.vision import analyze_pdf_with_vision, detect_backend
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    """Vision-enhanced parsing: text base + vision enhancement, with fallback."""
+    from src.parser.vision import enhance_with_vision, detect_backend
 
+    # First, do text-based parsing (always works)
+    base_model = _parse_text_mode(pdf_path, project_name)
+
+    # Then try to enhance with vision
     if backend == "auto":
-        detected, _ = detect_backend()
-        backend = detected
+        detected_backend, _ = detect_backend()
+        backend = detected_backend
 
     if backend == "none":
-        raise ValueError(
-            "No vision backend available.\n"
-            "Install Ollama (free): https://ollama.com\n"
-            "Then run: ollama pull llama3.2-vision:11b\n"
-            "Or set ANTHROPIC_API_KEY for Claude API."
-        )
+        return base_model  # Return text-only results
 
-    return analyze_pdf_with_vision(pdf_path, backend=backend, api_key=api_key)
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    try:
+        enhanced = enhance_with_vision(
+            pdf_path,
+            base_model,
+            backend=backend,
+            api_key=api_key,
+        )
+        return enhanced
+    except Exception as e:
+        print(f"Vision enhancement failed: {e}, returning text-only results")
+        return base_model
 
 
 @app.route("/api/parse", methods=["POST"])
