@@ -99,14 +99,14 @@ canvas{display:block;position:fixed;top:0;left:0}
 <div id="crosshair"></div>
 
 <!-- Walk hint -->
-<div id="walkhint">WASD 移动 &middot; 鼠标环视 &middot; ESC 退出漫游</div>
+<div id="walkhint" onclick="if(walkMode&&!F.isLocked){F.lock();document.getElementById('walkhint').textContent='WASD 移动 · 鼠标环视 · ESC 退出'}">点击屏幕激活漫游 &middot; WASD 移动 &middot; ESC 退出</div>
 
 <!-- Sidebar -->
 <div id="sidebar"></div>
 
 <!-- Top -->
 <div id="topbar">
-<div id="vc"><button class="on" data-view="persp" onclick="V('persp')">鸟瞰</button><button data-view="walk" onclick="V('walk')">漫游</button><button data-view="top" onclick="V('top')">俯视</button><button data-view="front" onclick="V('front')">前视</button></div>
+<div id="vc"><button class="on" data-view="persp" onclick="V('persp')">鸟瞰</button><button data-view="walk" onclick="V('walk')">🚶 漫游</button><button data-view="top" onclick="V('top')">俯视</button></div>
 <div id="info-card"><div class="pj" id="sp">&mdash;</div><div class="meta"><span>房间 <b id="sr">0</b></span><span>墙体 <b id="sw">0</b></span><span>柜体 <b id="sc">0</b></span></div></div>
 </div>
 
@@ -152,8 +152,9 @@ const O=new OrbitControls(C,R.domElement);O.enableDamping=true;O.dampingFactor=.
 
 // First-person controls
 const F=new PointerLockControls(C,R.domElement);
-let walkMode=false,walkSpeed=4;
-const keys={};let playerHeight=1.7;
+let walkMode=false,walkSpeed=2.5;
+const keys={};let playerHeight=1.65;
+let walkPrompted=false;
 
 // ── Lighting ──
 S.add(new T.AmbientLight(0x445566,1.8));
@@ -345,62 +346,82 @@ window.V=function(v){
 };
 
 function enterWalkMode(){
-  walkMode=true;
-  // Start from first room center or current position
-  if(roomGroups.length>0&&activeRoom>=0){
-    const box=new T.Box3().setFromObject(roomGroups[activeRoom]);if(!box.isEmpty()){const c=box.getCenter(new T.Vector3());C.position.set(c.x,playerHeight,c.z)}
-  }else if(roomGroups.length>0){
-    const box=new T.Box3().setFromObject(roomGroups[0]);if(!box.isEmpty()){const c=box.getCenter(new T.Vector3());C.position.set(c.x,playerHeight,c.z)}
+  walkMode=true;C.fov=65;C.updateProjectionMatrix();
+  let targetRG=null;
+  if(roomGroups.length>0&&activeRoom>=0&&activeRoom<roomGroups.length)targetRG=roomGroups[activeRoom];
+  else if(roomGroups.length>0)targetRG=roomGroups[0];
+  if(targetRG){
+    const box=new T.Box3().setFromObject(targetRG);if(!box.isEmpty()){const c=box.getCenter(new T.Vector3());C.position.set(c.x,playerHeight,c.z)}
   }
   O.enabled=false;
-  F.lock();
   document.getElementById('crosshair').classList.add('show');
   document.getElementById('walkhint').classList.add('show');
-  // Hide all ceilings in walk mode
+  document.getElementById('walkhint').textContent='🖱 点击屏幕激活 · WASD 移动 · ESC 退出';
   if(showCeil){ceilGroups.forEach(cg=>cg.visible=false)}
+  document.querySelectorAll('#sidebar button').forEach((b,i)=>{if(i===0)b.classList.add('sel');else b.classList.remove('sel')});
+  activeRoom=-1;roomGroups.forEach(rg=>rg.visible=true);
 }
 
 function exitWalkMode(){
-  walkMode=false;
+  walkMode=false;walkPrompted=false;
   F.unlock();
-  O.enabled=true;
+  O.enabled=true;C.fov=50;C.updateProjectionMatrix();
   document.getElementById('crosshair').classList.remove('show');
   document.getElementById('walkhint').classList.remove('show');
-  // Restore ceilings
   if(showCeil){ceilGroups.forEach(cg=>cg.visible=true)}
 }
+
+// Click canvas to lock pointer when in walk mode
+R.domElement.addEventListener('click',()=>{
+  if(walkMode&&!F.isLocked){
+    F.lock();
+    document.getElementById('walkhint').textContent='WASD 移动 · 鼠标环视 · ESC 退出';
+  }
+});
 
 F.addEventListener('lock',()=>{});
 F.addEventListener('unlock',()=>{if(walkMode)exitWalkMode()});
 
 // Walk movement
-const walkDir=new T.Vector3(),walkRight=new T.Vector3();
+const walkDir=new T.Vector3();
+const playerRadius=.25;
+function checkWallCollision(pos){
+  for(const w of wallColliders){
+    if(!w.userData.isWall)continue;
+    const wq=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),w.userData.ang);
+    const local=new T.Vector3().copy(pos).sub(new T.Vector3(w.userData.cx,0,w.userData.cz)).applyQuaternion(wq.clone().invert());
+    const hw=w.userData.L/2,hh=w.userData.H,ht=w.userData.Th/2+playerRadius;
+    if(Math.abs(local.x)<hw+playerRadius&&Math.abs(local.z)<ht&&pos.y<hh){
+      // Push out of wall
+      if(Math.abs(local.z)<ht){
+        const pushDir=local.x>0?1:-1;
+        pos.x+=pushDir*(hw+playerRadius-Math.abs(local.x))*Math.cos(w.userData.ang);
+        pos.z+=pushDir*(hw+playerRadius-Math.abs(local.x))*Math.sin(w.userData.ang);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 function updateWalk(delta){
   if(!walkMode||!F.isLocked)return;
   const dt=Math.min(delta,.1);
   walkDir.set(0,0,0);
-  if(keys['KeyW']||keys['ArrowUp'])walkDir.z-=1;
-  if(keys['KeyS']||keys['ArrowDown'])walkDir.z+=1;
-  if(keys['KeyA']||keys['ArrowLeft'])walkDir.x-=1;
-  if(keys['KeyD']||keys['ArrowRight'])walkDir.x+=1;
-  if(walkDir.length()>0){
-    walkDir.normalize().applyQuaternion(C.quaternion);walkDir.y=0;
-    const mv=walkDir.clone().multiplyScalar(walkSpeed*dt);
-    const newPos=C.position.clone().add(mv);
-    // Simple wall collision: check distance to nearest wall
-    let blocked=false;
-    for(const w of wallColliders){
-      if(!w.userData.isWall)continue;
-      const wpos=new T.Vector3(w.userData.cx,w.userData.L/2,w.userData.cz);
-      const wquat=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),w.userData.ang);
-      // Transform player position to wall local space
-      const local=new T.Vector3().copy(newPos).sub(new T.Vector3(w.userData.cx,0,w.userData.cz)).applyQuaternion(wquat.clone().invert());
-      const hw=w.userData.L/2,hh=w.userData.H/2,ht=w.userData.Th/2+.2; // .2m player radius
-      if(Math.abs(local.x)<hw+ht&&Math.abs(local.z)<ht&&Math.abs(newPos.y-playerHeight/2)<hh){
-        blocked=true;break;
-      }
-    }
-    if(!blocked)C.position.copy(newPos);
+  if(keys['KeyW'])walkDir.z-=1;
+  if(keys['KeyS'])walkDir.z+=1;
+  if(keys['KeyA'])walkDir.x-=1;
+  if(keys['KeyD'])walkDir.x+=1;
+  if(walkDir.length()>.01){
+    walkDir.normalize();
+    // Apply camera rotation (ignore pitch for movement)
+    const yaw=new T.Euler(0,C.rotation.y,0);
+    walkDir.applyEuler(yaw);
+    const mv=walkDir.multiplyScalar(walkSpeed*dt);
+    // Try X movement
+    const testX=C.position.clone();testX.x+=mv.x;checkWallCollision(testX);C.position.x=testX.x;
+    // Try Z movement
+    const testZ=C.position.clone();testZ.z+=mv.z;checkWallCollision(testZ);C.position.z=testZ.z;
     C.position.y=playerHeight;
   }
 }
@@ -421,7 +442,7 @@ window.addEventListener('keydown',e=>{keys[e.code]=true;if(walkMode&&e.code==='E
 window.addEventListener('keyup',e=>{keys[e.code]=false});
 window.addEventListener('keydown',e=>{
   if(!walkMode){
-    if(e.key==='1')V('persp');if(e.key==='2')V('walk');if(e.key==='3')V('top');if(e.key==='4')V('front');
+    if(e.key==='1')V('persp');if(e.key==='2')V('walk');if(e.key==='3')V('top');
     if(e.key==='w'||e.key==='W')W();
     if(e.key==='ArrowLeft'||e.key==='ArrowRight'){const n=roomGroups.length;if(!n)return;let next=activeRoom+(e.key==='ArrowRight'?1:-1);if(next>=n)next=-1;if(next<-1)next=n-1;selRoom(next)}
   }
