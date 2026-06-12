@@ -4,46 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>观澜北苑 — 3D 空间可视化</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #0f0f14;
-  --surface: #18181f;
-  --border: rgba(255,255,255,.06);
-  --text: #e8e6e1;
-  --text-dim: rgba(255,255,255,.35);
-  --text-mid: rgba(255,255,255,.55);
-  --accent: #c8a87c;
-  --accent-dim: rgba(200,168,124,.15);
-  --blue: #5b7fbc;
-  --blue-dim: rgba(91,127,188,.12);
-  --red: #b55a5a;
-  --radius: 10px;
-  --font-display: 'Outfit', system-ui, sans-serif;
-  --font-body: 'Crimson Text', Georgia, serif;
-  --font-mono: 'DM Mono', 'SF Mono', monospace;
-}
-
+:root{--bg:#0f0f14;--surface:#18181f;--border:rgba(255,255,255,.06);--text:#e8e6e1;--text-dim:rgba(255,255,255,.35);--accent:#c8a87c;--accent-dim:rgba(200,168,124,.15);--radius:10px;--font-display:'Outfit',system-ui,sans-serif;--font-body:'Crimson Text',Georgia,serif;--font-mono:'DM Mono','SF Mono',monospace}
 *{margin:0;padding:0;box-sizing:border-box}
 body{overflow:hidden;background:var(--bg);font-family:var(--font-display);color:var(--text);-webkit-font-smoothing:antialiased}
-
-/* ── Canvas ── */
 canvas{display:block;position:fixed;top:0;left:0}
-
-/* ── Upload Overlay ── */
-#overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center, rgba(15,15,20,.7) 0%, rgba(10,10,16,.95) 100%);backdrop-filter:blur(20px);transition:opacity .6s,visibility .6s}
+#overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(15,15,20,.7) 0%,rgba(10,10,16,.95) 100%);backdrop-filter:blur(20px);transition:opacity .6s,visibility .6s}
 #overlay.hidden{opacity:0;visibility:hidden;pointer-events:none}
-
 #overlay .bg-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:40px 40px;mask-image:radial-gradient(ellipse at center,black 30%,transparent 70%)}
-
 #overlay .content{position:relative;z-index:1;text-align:center;max-width:480px;padding:0 24px}
 #overlay .brand{font-family:var(--font-body);font-style:italic;font-size:15px;color:var(--accent);letter-spacing:.08em;margin-bottom:20px}
 #overlay h1{font-size:36px;font-weight:300;letter-spacing:.02em;line-height:1.2;margin-bottom:12px}
 #overlay h1 span{font-weight:700;color:var(--accent)}
 #overlay .desc{font-size:15px;color:var(--text-dim);line-height:1.6;margin-bottom:36px}
-
 #dropZone{display:block;padding:44px 32px;border:1px dashed rgba(255,255,255,.12);border-radius:16px;cursor:pointer;transition:all .35s;position:relative;overflow:hidden}
 #dropZone::before{content:'';position:absolute;inset:0;background:var(--accent-dim);opacity:0;transition:opacity .35s}
 #dropZone:hover{border-color:var(--accent);border-style:solid}
@@ -53,300 +27,263 @@ canvas{display:block;position:fixed;top:0;left:0}
 #dropZone .label{font-size:15px;font-weight:500;color:var(--text);margin-bottom:4px}
 #dropZone .hint{font-size:12px;color:var(--text-dim);font-family:var(--font-mono)}
 #dropZone.drag{border-color:var(--accent);border-style:solid;background:var(--accent-dim)}
-
 #overlay .footer{display:flex;gap:24px;justify-content:center;margin-top:28px;font-size:11px;color:var(--text-dim);font-family:var(--font-mono);letter-spacing:.04em}
 #overlay .footer span{display:flex;align-items:center;gap:6px}
-
-/* ── Status Toast ── */
 #toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;pointer-events:none;opacity:0;transition:opacity .3s}
 #toast.show{opacity:1}
 #toast .pulse{width:48px;height:48px;border-radius:50%;background:var(--accent);margin:0 auto 16px;animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(.8);opacity:.6}50%{transform:scale(1.1);opacity:1}}
 #toast .msg{text-align:center;font-size:13px;color:var(--text-dim);font-family:var(--font-mono);letter-spacing:.04em}
-
-/* ── Top Bar ── */
 #topbar{position:fixed;top:20px;left:20px;right:20px;z-index:50;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;opacity:0;transition:opacity .5s}
 #topbar.visible{opacity:1}
 #topbar>*{pointer-events:auto}
-
 #view-controls{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:4px;backdrop-filter:blur(20px)}
-#view-controls button{width:38px;height:34px;border:none;background:transparent;color:var(--text-dim);border-radius:7px;cursor:pointer;font-size:12px;font-family:var(--font-mono);font-weight:500;transition:all .2s;letter-spacing:.02em}
+#view-controls button{width:38px;height:34px;border:none;background:transparent;color:var(--text-dim);border-radius:7px;cursor:pointer;font-size:12px;font-family:var(--font-mono);font-weight:500;transition:all .2s}
 #view-controls button:hover{color:var(--text);background:rgba(255,255,255,.04)}
 #view-controls button.active{color:var(--accent);background:var(--accent-dim)}
-
 #info-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;backdrop-filter:blur(20px)}
-#info-card .project{font-size:14px;font-weight:600;color:var(--text);letter-spacing:.02em}
+#info-card .project{font-size:14px;font-weight:600;color:var(--text)}
 #info-card .meta{display:flex;gap:14px;margin-top:4px;font-size:11px;color:var(--text-dim);font-family:var(--font-mono)}
 #info-card .meta b{color:var(--accent);font-weight:500}
-
-/* ── Bottom Bar ── */
 #bottombar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:4px;backdrop-filter:blur(20px);opacity:0;transition:opacity .5s}
 #bottombar.visible{opacity:1}
-#bottombar button{padding:8px 16px;border:none;background:transparent;color:var(--text-dim);border-radius:7px;cursor:pointer;font-size:12px;font-family:var(--font-display);font-weight:500;transition:all .2s;white-space:nowrap}
+#bottombar button{padding:8px 16px;border:none;background:transparent;color:var(--text-dim);border-radius:7px;cursor:pointer;font-size:12px;font-family:var(--font-display);font-weight:500;transition:all .2s}
 #bottombar button:hover{color:var(--text);background:rgba(255,255,255,.04)}
 #bottombar button.active{color:var(--accent);background:var(--accent-dim)}
 #bottombar .sep{width:1px;background:var(--border);margin:4px 6px}
-
-/* ── Help ── */
 #help{position:fixed;bottom:24px;right:24px;z-index:50;font-size:10px;color:var(--text-dim);font-family:var(--font-mono);opacity:0;transition:opacity .5s;text-align:right;line-height:1.8}
 #help.visible{opacity:1}
 #help kbd{display:inline-block;padding:1px 5px;background:var(--surface);border:1px solid var(--border);border-radius:3px;font-family:var(--font-mono);font-size:10px;color:var(--text-mid)}
-
-/* ── Mode Toggle ── */
 .mode-btn{padding:7px 18px;border:1px solid rgba(255,255,255,.12);background:transparent;color:var(--text-dim);border-radius:20px;cursor:pointer;font-size:12px;font-family:var(--font-display);font-weight:500;transition:all .25s}
 .mode-btn:hover{border-color:rgba(255,255,255,.2);color:var(--text)}
 .mode-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
-#overlay .footer.mode-row{gap:8px;margin-top:24px}
-
-/* ── File input ── */
 #fileInput{display:none}
 </style>
 </head>
 <body>
-
-<!-- Upload Overlay -->
-<div id="overlay">
-  <div class="bg-grid"></div>
-  <div class="content">
-    <div class="brand">Architectural Visualization</div>
-    <h1>设计图 <span>→</span> 三维空间</h1>
-    <p class="desc">上传室内设计 PDF 图纸，即时生成可交互的 3D 模型。<br>支持全屋定制、橱柜设计、衣柜布局。</p>
-    <div id="dropZone">
-      <div class="icon" id="dropIcon">📐</div>
-      <div class="label" id="dropLabel">拖放 PDF 文件到此处</div>
-      <div class="hint" id="dropHint">或点击选择文件 &nbsp;·&nbsp; 最大 50MB</div>
-    </div>
-    <div class="footer" style="margin-top:24px;gap:8px;">
-      <button id="btnText" class="mode-btn active" onclick="setMode('text')">📝 文本解析</button>
-      <button id="btnVision" class="mode-btn" onclick="setMode('vision')">🤖 AI 视觉</button>
-    </div>
-    <p id="backendInfo" style="margin-top:12px;font-size:11px;color:var(--text-dim);font-family:var(--font-mono)"></p>
-    <div class="footer">
-      <span>🏠 全屋定制</span>
-      <span>📏 尺寸提取</span>
-      <span>🔄 实时渲染</span>
-    </div>
-  </div>
+<div id="overlay"><div class="bg-grid"></div><div class="content">
+<div class="brand">Architectural Visualization</div>
+<h1>设计图 <span>&rarr;</span> 三维空间</h1>
+<p class="desc">上传室内设计 PDF 图纸，即时生成可交互的 3D 模型。</p>
+<div id="dropZone"><div class="icon">&#128208;</div><div class="label">拖放 PDF 文件到此处</div><div class="hint">或点击选择文件 &middot; 最大 50MB</div></div>
+<div style="margin-top:24px;gap:8px;display:flex;justify-content:center">
+<button id="btnText" class="mode-btn active" onclick="setMode('text')">文本解析</button>
+<button id="btnVision" class="mode-btn" onclick="setMode('vision')">AI 视觉</button>
 </div>
-
-<!-- Toast -->
-<div id="toast"><div class="pulse"></div><div class="msg">正在解析图纸...</div></div>
-
-<!-- Top Bar -->
-<div id="topbar">
-  <div id="view-controls">
-    <button class="active" data-view="persp" onclick="V('persp')" title="透视图">3D</button>
-    <button data-view="top" onclick="V('top')" title="俯视图">俯</button>
-    <button data-view="front" onclick="V('front')" title="前视图">前</button>
-    <button data-view="right" onclick="V('right')" title="右视图">右</button>
-  </div>
-  <div id="info-card">
-    <div class="project" id="sp">—</div>
-    <div class="meta">
-      <span>房间 <b id="sr">—</b></span>
-      <span>墙体 <b id="sw">—</b></span>
-      <span>柜体 <b id="sc">—</b></span>
-    </div>
-  </div>
-</div>
-
-<!-- Bottom Bar -->
-<div id="bottombar">
-  <button onclick="W()" id="btn-wire">线框模式</button>
-  <span class="sep"></span>
-  <button onclick="U()">重新上传</button>
-</div>
-
-<!-- Help -->
-<div id="help">
-  <kbd>1</kbd> 透视 &nbsp;<kbd>2</kbd> 俯视 &nbsp;<kbd>3</kbd> 前视 &nbsp;<kbd>4</kbd> 右视<br>
-  <kbd>W</kbd> 线框 &nbsp;&nbsp;🖱 旋转 &nbsp;🔍 缩放 &nbsp;✋ 平移
-</div>
-
+<p id="backendInfo" style="margin-top:12px;font-size:11px;color:var(--text-dim);font-family:var(--font-mono)"></p>
+<div class="footer"><span>全屋定制</span><span>尺寸提取</span><span>实时渲染</span></div>
+</div></div>
+<div id="toast"><div class="pulse"></div><div class="msg">解析中...</div></div>
+<div id="topbar"><div id="view-controls">
+<button class="active" data-view="persp" onclick="V('persp')">3D</button>
+<button data-view="top" onclick="V('top')">俯</button>
+<button data-view="front" onclick="V('front')">前</button>
+<button data-view="right" onclick="V('right')">右</button>
+</div><div id="info-card"><div class="project" id="sp">&mdash;</div><div class="meta"><span>房间 <b id="sr">&mdash;</b></span><span>墙体 <b id="sw">&mdash;</b></span><span>柜体 <b id="sc">&mdash;</b></span></div></div></div>
+<div id="bottombar"><button onclick="W()" id="btn-wire">线框模式</button><span class="sep"></span><button onclick="U()">重新上传</button></div>
+<div id="help"><kbd>1</kbd> 透视 <kbd>2</kbd> 俯视 <kbd>3</kbd> 前视 <kbd>4</kbd> 右视<br><kbd>W</kbd> 线框 鼠标旋转 滚轮缩放 右键平移</div>
 <input type="file" id="fileInput" accept=".pdf">
-
-<script type="importmap">
-{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
-</script>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as T from "three";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 
+// ── Texture generators ──
+function woodTex(w,h,base,stripe,grain){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle=base;x.fillRect(0,0,w,h);for(let i=0;i<w;i+=8+Math.random()*20){x.fillStyle=stripe;x.fillRect(i,0,1+Math.random()*2,h);x.fillStyle=grain;const gy=h*.3+Math.random()*h*.4;x.fillRect(i+2,gy,.5,3+Math.random()*12)}return new T.CanvasTexture(c)}
+function concreteTex(){const c=document.createElement('canvas');c.width=256;c.height=256;const x=c.getContext('2d');x.fillStyle='#e8e4dc';x.fillRect(0,0,256,256);for(let i=0;i<300;i++){const g=220+Math.random()*20;x.fillStyle=`rgb(${g},${g},${g})`;x.fillRect(Math.random()*256,Math.random()*256,1+Math.random()*3,1+Math.random()*3)}return new T.CanvasTexture(c)}
+
+const texWood=woodTex(512,256,'#c4a882','#b8956e','#a08060');texWood.wrapS=texWood.wrapT=T.RepeatWrapping;
+const texFloor=woodTex(512,512,'#b8956e','#a8855e','#c4a880');texFloor.wrapS=texFloor.wrapT=T.RepeatWrapping;texFloor.repeat.set(2,2);
+const texWall=concreteTex();texWall.wrapS=texWall.wrapT=T.RepeatWrapping;texWall.repeat.set(4,3);
+
+// ── Materials ──
+const M={
+  wall:new T.MeshStandardMaterial({map:texWall,color:0xeeeeee,roughness:.85,metalness:.02}),
+  floor:new T.MeshStandardMaterial({map:texFloor,color:0xffffff,roughness:.35,metalness:.05}),
+  cabinet:new T.MeshStandardMaterial({map:texWood,color:0xffffff,roughness:.22,metalness:.04}),
+  cabinetDark:new T.MeshStandardMaterial({color:0xe0d8cc,roughness:.28,metalness:.05}),
+  handle:new T.MeshStandardMaterial({color:0xc8b898,roughness:.15,metalness:.5}),
+  skirting:new T.MeshStandardMaterial({color:0xeeeeee,roughness:.7,metalness:.02}),
+  glass:new T.MeshStandardMaterial({color:0xaaccdd,roughness:.1,metalness:.1,transparent:true,opacity:.35}),
+  door:new T.MeshStandardMaterial({map:texWood,color:0xdddddd,roughness:.3,metalness:.05}),
+};
+const flColors=[0xc8a87c,0x7b9cc2,0x8aaa7a,0xc4956a,0x9b8ec4,0x6aaa9a,0xc47a5a,0x7a8ea0];
+
 // ── Scene ──
-const S=new T.Scene();S.background=new T.Color(0x0f0f14);S.fog=new T.Fog(0x0f0f14,18,55);
-const C=new T.PerspectiveCamera(55,innerWidth/innerHeight,.1,80);
-const R=new T.WebGLRenderer({antialias:true});R.setSize(innerWidth,innerHeight);R.setPixelRatio(Math.min(devicePixelRatio,2));R.shadowMap.enabled=true;R.shadowMap.type=T.PCFSoftShadowMap;R.toneMapping=T.ACESFilmicToneMapping;R.toneMappingExposure=1.15;
+const S=new T.Scene();S.background=new T.Color(0x0f0f14);S.fog=new T.Fog(0x0f0f14,20,55);
+const C=new T.PerspectiveCamera(50,innerWidth/innerHeight,.1,80);
+const R=new T.WebGLRenderer({antialias:true});R.setSize(innerWidth,innerHeight);R.setPixelRatio(Math.min(devicePixelRatio,2));R.shadowMap.enabled=true;R.shadowMap.type=T.PCFSoftShadowMap;R.toneMapping=T.ACESFilmicToneMapping;R.toneMappingExposure=1.2;
 document.body.appendChild(R.domElement);
 const O=new OrbitControls(C,R.domElement);O.enableDamping=true;O.dampingFactor=.08;O.minDistance=1;O.maxDistance=35;O.maxPolarAngle=Math.PI*.52;O.target.set(0,1.4,0);O.update();
 
-// ── Lights ──
-S.add(new T.AmbientLight(0x334466,1.8));
-const sun=new T.DirectionalLight(0xfff5e8,4.5);sun.position.set(10,15,-5);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-20;sun.shadow.camera.right=20;sun.shadow.camera.top=20;sun.shadow.camera.bottom=-8;sun.shadow.bias=-.0002;S.add(sun);
-const fill=new T.DirectionalLight(0x8899cc,1.8);fill.position.set(-5,4,6);S.add(fill);
+// ── Lighting ──
+S.add(new T.AmbientLight(0x445566,1.5));
+const sun=new T.DirectionalLight(0xfff8ee,6);sun.position.set(12,18,-5);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.near=.5;sun.shadow.camera.far=60;sun.shadow.camera.left=-15;sun.shadow.camera.right=15;sun.shadow.camera.top=15;sun.shadow.camera.bottom=-8;sun.shadow.bias=-.0002;sun.shadow.normalBias=.02;S.add(sun);
+const fill=new T.DirectionalLight(0xaabbdd,2);fill.position.set(-5,5,6);S.add(fill);
+const rim=new T.DirectionalLight(0xffffff,1.5);rim.position.set(0,3,-8);S.add(rim);
 
-// ── Ground ──
-const gridTex=(()=>{const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');x.strokeStyle='rgba(255,255,255,.04)';x.lineWidth=1;for(let i=0;i<512;i+=32){x.beginPath();x.moveTo(i,0);x.lineTo(i,512);x.stroke();x.beginPath();x.moveTo(0,i);x.lineTo(512,i);x.stroke()}return new T.CanvasTexture(c)})();gridTex.wrapS=gridTex.wrapT=T.RepeatWrapping;gridTex.repeat.set(2,2);
-S.add(new T.Mesh(new T.PlaneGeometry(40,40),new T.MeshBasicMaterial({map:gridTex,transparent:true,opacity:.5,depthWrite:false})).copy(new T.Mesh(new T.PlaneGeometry(1,1))).rotateX(-Math.PI/2).position.set(0,.001,0)||(m=>{m.rotation.x=-Math.PI/2;m.position.y=.001;return m})(new T.Mesh(new T.PlaneGeometry(40,40),new T.MeshBasicMaterial({map:gridTex,transparent:true,opacity:.5,depthWrite:false}))));
+// ── Ground with soft shadow ──
+const gnd=new T.Mesh(new T.PlaneGeometry(40,40),new T.MeshStandardMaterial({color:0x181820,roughness:.95}));gnd.rotation.x=-Math.PI/2;gnd.position.y=-.01;gnd.receiveShadow=true;S.add(gnd);
+const grid=new T.GridHelper(40,80,0x333355,0x22223a);grid.position.y=.002;grid.material.transparent=true;grid.material.opacity=.4;grid.material.depthWrite=false;S.add(grid);
 
-const gnd=new T.Mesh(new T.PlaneGeometry(40,40),new T.MeshStandardMaterial({color:0x14141c,roughness:.95}));gnd.rotation.x=-Math.PI/2;gnd.position.y=-.01;gnd.receiveShadow=true;S.add(gnd);
-
-// ── Materials ──
-const roomColors=[0xc8a87c,0x7b9cc2,0x8aaa7a,0xc4956a,0x9b8ec4,0x6aaa9a,0xc47a5a,0x7a8ea0];
-const wMat=new T.MeshStandardMaterial({color:0xe8e4dc,roughness:.78,metalness:.03});
-const cMat=new T.MeshStandardMaterial({color:0xf5f0e8,roughness:.22,metalness:.04});
+// ── Model group ──
 const MG=new T.Group();S.add(MG);
 let ci=0;
-
-// ── Grid ground overlay (simple approach) ──
-(function fixGrid(){
-  const g = new T.GridHelper(40,80,0x333355,0x22223a);
-  g.position.y = .002; g.material.transparent = true; g.material.opacity = .4; g.material.depthWrite = false;
-  S.add(g);
-})();
 
 // ── Builders ──
 function makeLabel(text,x,y,z){
   const cvs=document.createElement('canvas');cvs.width=256;cvs.height=64;
-  const ctx=cvs.getContext('2d');ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='600 26px Outfit,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,128,32);
+  const ctx=cvs.getContext('2d');ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='600 24px Outfit,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,128,32);
   const sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(cvs),transparent:true,depthTest:false,depthWrite:false}));
-  sp.position.set(x,y,z);sp.scale.set(2.8,.7,1);return sp;
+  sp.position.set(x,y,z);sp.scale.set(2.4,.6,1);return sp;
 }
-function bWall(w,tm){
+
+function buildWall(w,tm){
   const L=w.length/1000,H=w.height/1000,Th=(w.thickness||120)/1000;
   const x1=w.start[0]/1000,z1=w.start[1]/1000,x2=w.end[0]/1000,z2=w.end[1]/1000;
   const cx=(x1+x2)/2,cz=(z1+z2)/2,ang=Math.atan2(z2-z1,x2-x1);
   const g=new T.Group();
-  const b=new T.Mesh(new T.BoxGeometry(L,H,Th),wMat);b.position.set(cx,H/2,cz);b.rotation.y=ang;b.castShadow=true;b.receiveShadow=true;g.add(b);
-  const tp=new T.Mesh(new T.BoxGeometry(L,.025,Th+.015),tm);tp.position.set(cx,H+.01,cz);tp.rotation.y=ang;g.add(tp);
-  return g;
-}
-function bFloor(room,mat){
-  const f=room.floor,w=f.width/1000,d=f.depth/1000,ox=(f.offset_x||0)/1000,oz=(f.offset_z||0)/1000;
-  const m=new T.Mesh(new T.PlaneGeometry(w,d),mat);m.rotation.x=-Math.PI/2;m.position.set(ox+w/2,.004,oz+d/2);m.receiveShadow=true;
-  return m;
-}
-function bCab(c){
-  const W=c.width/1000,H=c.height/1000,D=c.depth/1000,px=(c.position[0]||0)/1000,pz=(c.position[1]||0)/1000;
-  const g=new T.Group();
-  const b=new T.Mesh(new T.BoxGeometry(W,H,D),cMat);b.position.set(px+W/2,H/2,pz+D/2);b.castShadow=true;b.receiveShadow=true;g.add(b);
-  const rim=new T.Mesh(new T.BoxGeometry(W+.01,.02,D+.01),new T.MeshStandardMaterial({color:0xddd8ce,roughness:.3}));rim.position.set(px+W/2,H+.01,pz+D/2);g.add(rim);
+  // Main wall body
+  const b=new T.Mesh(new T.BoxGeometry(L,H,Th),M.wall);b.position.set(cx,H/2,cz);b.rotation.y=ang;b.castShadow=true;b.receiveShadow=true;g.add(b);
+  // Crown molding (top)
+  const crown=new T.Mesh(new T.BoxGeometry(L,.06,Th+.03),M.skirting);crown.position.set(cx,H+.03,cz);crown.rotation.y=ang;crown.castShadow=true;g.add(crown);
+  // Baseboard
+  const base=new T.Mesh(new T.BoxGeometry(L,.1,Th+.02),M.skirting);base.position.set(cx,.05,cz);base.rotation.y=ang;base.receiveShadow=true;g.add(base);
+  // Room accent stripe at top
+  const stripe=new T.Mesh(new T.BoxGeometry(L,.015,Th+.01),tm);stripe.position.set(cx,H-.04,cz);stripe.rotation.y=ang;g.add(stripe);
   return g;
 }
 
-// ── Build Model ──
+function buildFloor(room,mat){
+  const f=room.floor,w=f.width/1000,d=f.depth/1000;
+  const ox=(f.offset_x||0)/1000,oz=(f.offset_z||0)/1000;
+  // Main floor
+  const m=new T.Mesh(new T.PlaneGeometry(w,d),mat);m.rotation.x=-Math.PI/2;m.position.set(ox+w/2,.002,oz+d/2);m.receiveShadow=true;
+  // Subtle floor border (slightly darker edge)
+  const borderGeo=new T.EdgesGeometry(new T.PlaneGeometry(w,d));
+  const border=new T.LineSegments(borderGeo,new T.LineBasicMaterial({color:0x000000,transparent:true,opacity:.1}));
+  border.rotation.x=-Math.PI/2;border.position.copy(m.position);border.position.y+=.001;
+  const fg=new T.Group();fg.add(m);fg.add(border);return fg;
+}
+
+function buildCabinet(c){
+  const W=c.width/1000,H=c.height/1000,D=c.depth/1000;
+  const px=(c.position[0]||0)/1000,pz=(c.position[1]||0)/1000;
+  const g=new T.Group();
+  const cx=px+W/2,cy=H/2,cz=pz+D/2;
+  // Main body
+  const body=new T.Mesh(new T.BoxGeometry(W,H,D),M.cabinet);body.position.set(cx,cy,cz);body.castShadow=true;body.receiveShadow=true;g.add(body);
+  // Top rim
+  const rim=new T.Mesh(new T.BoxGeometry(W+.02,.02,D+.02),M.cabinetDark);rim.position.set(cx,H+.01,cz);g.add(rim);
+  // Bottom kick/toe kick (recessed)
+  if(H>1.0){const kick=new T.Mesh(new T.BoxGeometry(W-.1,.08,D-.08),M.cabinetDark);kick.position.set(cx,.04,cz);kick.receiveShadow=true;g.add(kick)}
+  // Door panels (vertical groove lines)
+  const nDoors=W>1.5?Math.floor(W/.6):1;
+  const doorW=W/nDoors;
+  for(let i=0;i<nDoors;i++){
+    const dx=cx-W/2+doorW*(i+.5);
+    // Door front panel (slightly inset)
+    const panel=new T.Mesh(new T.BoxGeometry(doorW-.03,H-.06,.005),M.cabinetDark);
+    panel.position.set(dx,cy,cz+D/2+.005);g.add(panel);
+    // Handle (small cylinder)
+    if(H>.5){
+      const hG=new T.CylinderGeometry(.006,.006,.04,8);hG.rotateX(Math.PI/2);
+      const handle=new T.Mesh(hG,M.handle);
+      handle.position.set(dx+doorW*.3,cy,cz+D/2+.035);g.add(handle);
+    }
+  }
+  // Horizontal shelf lines
+  if(H>.8){const nShelves=Math.floor(H/.6);for(let s=1;s<nShelves;s++){const sh=new T.Mesh(new T.BoxGeometry(W-.02,.003,D-.02),M.cabinetDark);sh.position.set(cx,H*s/nShelves,cz);g.add(sh)}}
+  return g;
+}
+
+function buildDoor(d,wallData){
+  const W=d.width/1000,H=(d.height||2100)/1000;
+  const wx=(wallData.start[0]+wallData.end[0])/2000,wz=(wallData.start[1]+wallData.end[1])/2000;
+  const dx=(wallData.end[0]-wallData.start[0])/1000,dz=(wallData.end[1]-wallData.start[1])/1000;
+  const ang=Math.atan2(dz,dx);
+  const pos=(d.position||0)/1000;
+  const g=new T.Group();
+  // Door body
+  const body=new T.Mesh(new T.BoxGeometry(W,H,.05),M.door);body.castShadow=true;
+  const ax=wx+Math.cos(ang)*pos,az=wz+Math.sin(ang)*pos;
+  body.position.set(ax,H/2,az);body.rotation.y=ang;g.add(body);
+  // Door handle
+  const hG=new T.CylinderGeometry(.008,.008,.03,8);hG.rotateX(Math.PI/2);
+  const h=new T.Mesh(hG,M.handle);h.position.set(ax+W*.35,H*.55,az+.04);g.add(h);
+  return g;
+}
+
+function buildWindow(win,wallData){
+  const W=win.width/1000,H=(win.height||1500)/1000;
+  const wx=(wallData.start[0]+wallData.end[0])/2000,wz=(wallData.start[1]+wallData.end[1])/2000;
+  const dx=(wallData.end[0]-wallData.start[0])/1000,dz=(wallData.end[1]-wallData.start[1])/1000;
+  const ang=Math.atan2(dz,dx);
+  const pos=(win.position||0)/1000;
+  const g=new T.Group();
+  // Glass pane
+  const glass=new T.Mesh(new T.BoxGeometry(W,H,.03),M.glass);
+  const ax=wx+Math.cos(ang)*pos,az=wz+Math.sin(ang)*pos;
+  glass.position.set(ax,H/2+.8,az);glass.rotation.y=ang;g.add(glass);
+  // Frame
+  const fw=.04;
+  const frameG=new T.BoxGeometry(W+fw,H+fw,fw);
+  const frame=new T.Mesh(frameG,M.cabinetDark);
+  frame.position.copy(glass.position);frame.rotation.y=ang;g.add(frame);
+  return g;
+}
+
+// ── Model Builder ──
 function buildModel(data){
   while(MG.children.length>0)MG.remove(MG.children[0]);ci=0;
   const rooms=data.rooms||[];let tw=0,tc=0;
   for(const room of rooms){
     const f=room.floor,fw=f.width/1000,fd=f.depth/1000,fox=(f.offset_x||0)/1000,foz=(f.offset_z||0)/1000;
-    const fm=new T.MeshStandardMaterial({color:roomColors[ci%roomColors.length],roughness:.38,metalness:.04});
-    const tm=new T.MeshStandardMaterial({color:roomColors[ci%roomColors.length],roughness:.18,metalness:.06});
+    const fm=new T.MeshStandardMaterial({map:texFloor,color:new T.Color(flColors[ci%flColors.length]).multiplyScalar(1.2),roughness:.38,metalness:.04});
+    const tm=new T.MeshStandardMaterial({color:flColors[ci%flColors.length],roughness:.18,metalness:.06,emissive:new T.Color(flColors[ci%flColors.length]).multiplyScalar(.15)});
     const rg=new T.Group();rg.name=room.name;
-    rg.add(bFloor(room,fm));
-    for(const w of room.walls||[]){rg.add(bWall(w,tm));tw++;}
-    for(const c of room.cabinets||[]){rg.add(bCab(c));tc++;}
-    rg.add(makeLabel(room.name,fox+fw/2,2.0,foz+fd/2));
+    rg.add(buildFloor(room,fm));
+    for(const w of room.walls||[]){rg.add(buildWall(w,tm));tw++;}
+    for(const c of room.cabinets||[]){rg.add(buildCabinet(c));tc++;}
+    for(const o of room.openings||[]){
+      const wd=(room.walls||[]).find(w=>w.id===o.wall_id);
+      if(wd){if(o.type==='door')rg.add(buildDoor(o,wd));else if(o.type==='window')rg.add(buildWindow(o,wd))}
+    }
+    rg.add(makeLabel(room.name,fox+fw/2,2.2,foz+fd/2));
     MG.add(rg);ci++;
   }
   const box=new T.Box3().setFromObject(MG);
   if(!box.isEmpty()){const ctr=box.getCenter(new T.Vector3());const sz=box.getSize(new T.Vector3());const maxD=Math.max(sz.x,sz.y,sz.z);O.target.copy(ctr);C.position.set(ctr.x+maxD*.7,ctr.y+maxD*.55,ctr.z+maxD*.9);O.update();}
-  document.getElementById('sp').textContent=data.project||'—';
-  document.getElementById('sr').textContent=rooms.length;
-  document.getElementById('sw').textContent=tw;
-  document.getElementById('sc').textContent=tc;
-  document.getElementById('overlay').classList.add('hidden');
-  document.getElementById('topbar').classList.add('visible');
-  document.getElementById('bottombar').classList.add('visible');
-  document.getElementById('help').classList.add('visible');
-  document.getElementById('toast').classList.remove('show');
+  document.getElementById('sp').textContent=data.project||'—';document.getElementById('sr').textContent=rooms.length;document.getElementById('sw').textContent=tw;document.getElementById('sc').textContent=tc;
+  document.getElementById('overlay').classList.add('hidden');document.getElementById('topbar').classList.add('visible');document.getElementById('bottombar').classList.add('visible');document.getElementById('help').classList.add('visible');document.getElementById('toast').classList.remove('show');
 }
 
-// ── Health Check ──
-(async function checkHealth(){
-  try{
-    const r=await fetch('/api/health');const d=await r.json();
-    if(d.vision_available){
-      document.getElementById('backendInfo').textContent='已检测到: '+d.backend+' ('+d.model+')';
-      document.getElementById('btnVision').style.opacity='1';
-    }else{
-      document.getElementById('backendInfo').textContent='未检测到视觉后端。安装 Ollama（免费）: ollama.com';
-      document.getElementById('btnVision').style.opacity='.4';
-    }
-  }catch(e){}
-})();
-
-// ── Mode ──
+// ── Health / Mode / API ──
+(async function(){try{const r=await fetch('/api/health');const d=await r.json();if(d.vision_available){document.getElementById('backendInfo').textContent=d.backend+' ('+d.model+')'}else{document.getElementById('backendInfo').textContent='未检测到视觉后端。安装 Ollama: ollama.com';document.getElementById('btnVision').style.opacity='.4'}}catch(e){}})();
 let parseMode='text';
-window.setMode=function(m){
-  parseMode=m;
-  document.getElementById('btnText').classList.toggle('active',m==='text');
-  document.getElementById('btnVision').classList.toggle('active',m==='vision');
-  const icon=m==='vision'?'🤖':'📐';
-  const label=m==='vision'?'AI 视觉解析模式':'拖放 PDF 文件到此处';
-  const hint=m==='vision'?'使用 Claude Vision 精确识别尺寸':'或点击选择文件 · 最大 50MB';
-  document.getElementById('dropIcon').textContent=icon;
-  document.getElementById('dropLabel').textContent=label;
-  document.getElementById('dropHint').textContent=hint;
-};
+window.setMode=function(m){parseMode=m;document.getElementById('btnText').classList.toggle('active',m==='text');document.getElementById('btnVision').classList.toggle('active',m==='vision');const icon=m==='vision'?'🤖':'📐';document.getElementById('dropZone').querySelector('.icon').textContent=icon};
 
-// ── API ──
 async function parsePDF(file){
-  const toast=document.getElementById('toast');
-  toast.classList.add('show');
-  const msgEl=toast.querySelector('.msg');
-  msgEl.textContent=parseMode==='vision'?'AI 视觉解析中，约需 10-30 秒...':'解析中...';
+  document.getElementById('toast').classList.add('show');document.getElementById('toast').querySelector('.msg').textContent=parseMode==='vision'?'AI 视觉增强中...':'解析中...';
   const fd=new FormData();fd.append('file',file);
-  const url='/api/parse?mode='+parseMode;
-  try{
-    const resp=await fetch(url,{method:'POST',body:fd});
-    const data=await resp.json();
-    if(data.error){alert('解析失败: '+data.error);toast.classList.remove('show');return;}
+  try{const resp=await fetch('/api/parse?mode='+parseMode,{method:'POST',body:fd});const data=await resp.json();
+    if(data.error){alert('解析失败: '+data.error);document.getElementById('toast').classList.remove('show');return}
     setTimeout(()=>buildModel(data),400);
-  }catch(err){
-    alert('请求失败: '+err.message);
-    toast.classList.remove('show');
-  }
+  }catch(err){alert('请求失败: '+err.message);document.getElementById('toast').classList.remove('show')}
 }
 
-// ── File Events ──
-const dropZone=document.getElementById('dropZone');
-const fileInput=document.getElementById('fileInput');
-dropZone.addEventListener('click',()=>fileInput.click());
-fileInput.addEventListener('change',e=>{if(e.target.files[0])parsePDF(e.target.files[0])});
-dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag')});
-dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
+// ── File Handling ──
+const dropZone=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput');
+dropZone.addEventListener('click',()=>fileInput.click());fileInput.addEventListener('change',e=>{if(e.target.files[0])parsePDF(e.target.files[0])});
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag')});dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
 dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag');if(e.dataTransfer.files[0])parsePDF(e.dataTransfer.files[0])});
 
 // ── Controls ──
-window.V=function(v){
-  document.querySelectorAll('#view-controls button').forEach(b=>b.classList.remove('active'));
-  document.querySelector(`[data-view="${v}"]`)?.classList.add('active');
-  const t=O.target.clone(),d=C.position.distanceTo(t);
-  if(v==='top')C.position.copy(t).add(new T.Vector3(.01,d,0));
-  else if(v==='front')C.position.copy(t).add(new T.Vector3(0,.5,d));
-  else if(v==='right')C.position.copy(t).add(new T.Vector3(d,.5,0));
-  else C.position.set(t.x+d*.55,t.y+d*.4,t.z+d*.75);
-  O.update();
-};
+window.V=function(v){document.querySelectorAll('#view-controls button').forEach(b=>b.classList.remove('active'));document.querySelector(`[data-view="${v}"]`)?.classList.add('active');const t=O.target.clone(),d=C.position.distanceTo(t);if(v==='top')C.position.copy(t).add(new T.Vector3(.01,d,0));else if(v==='front')C.position.copy(t).add(new T.Vector3(0,.5,d));else if(v==='right')C.position.copy(t).add(new T.Vector3(d,.5,0));else C.position.set(t.x+d*.55,t.y+d*.4,t.z+d*.75);O.update()};
 let wr=false;
-window.W=function(){
-  wr=!wr;document.getElementById('btn-wire').classList.toggle('active',wr);
-  MG.traverse(c=>{if(c.isMesh){const ms=Array.isArray(c.material)?c.material:[c.material];ms.forEach(m=>{if(m!==gnd.material)m.wireframe=wr})}});
-};
-window.U=function(){
-  document.getElementById('overlay').classList.remove('hidden');
-  document.getElementById('topbar').classList.remove('visible');
-  document.getElementById('bottombar').classList.remove('visible');
-  document.getElementById('help').classList.remove('visible');
-  while(MG.children.length>0)MG.remove(MG.children[0]);
-};
-
-window.addEventListener('keydown',e=>{
-  if(e.key==='1')V('persp');if(e.key==='2')V('top');if(e.key==='3')V('front');if(e.key==='4')V('right');
-  if(e.key==='w'||e.key==='W')W();
-});
+window.W=function(){wr=!wr;document.getElementById('btn-wire').classList.toggle('active',wr);MG.traverse(c=>{if(c.isMesh){const ms=Array.isArray(c.material)?c.material:[c.material];ms.forEach(m=>{if(m!==gnd.material&&m.wireframe!==undefined)m.wireframe=wr})}})};
+window.U=function(){document.getElementById('overlay').classList.remove('hidden');document.getElementById('topbar').classList.remove('visible');document.getElementById('bottombar').classList.remove('visible');document.getElementById('help').classList.remove('visible');while(MG.children.length>0)MG.remove(MG.children[0])};
+window.addEventListener('keydown',e=>{if(e.key==='1')V('persp');if(e.key==='2')V('top');if(e.key==='3')V('front');if(e.key==='4')V('right');if(e.key==='w'||e.key==='W')W()});
 window.addEventListener('resize',()=>{C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)});
 (function l(){requestAnimationFrame(l);O.update();R.render(S,C)})();
-</script>
-</body>
-</html>
+</script></body></html>
